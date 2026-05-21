@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企业风险库可视化展示系统</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg-deep: #020b18;
+  --bg-card: rgba(4, 24, 48, 0.85);
+  --bg-panel: rgba(6, 30, 60, 0.9);
+  --border-blue: rgba(0, 180, 255, 0.35);
+  --border-glow: rgba(0, 200, 255, 0.7);
+  --accent-cyan: #00d4ff;
+  --accent-blue: #0088ff;
+  --accent-green: #00ff88;
+  --accent-yellow: #ffcc00;
+  --accent-red: #ff4444;
+  --accent-orange: #ff8800;
+  --text-primary: #e0f0ff;
+  --text-secondary: rgba(160, 200, 240, 0.75);
+  --text-dim: rgba(100, 150, 200, 0.55);
+  --high-risk: #ff3366;
+  --mid-risk: #ff9900;
+  --low-risk: #00cc88;
+  --critical: #cc00ff;
+  --serious: #ff6600;
+}
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg-deep); font-family: 'Microsoft YaHei','PingFang SC',Arial,sans-serif; color: var(--text-primary); }
+
+#particles-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+body::before { content: ''; position: fixed; inset: 0; z-index: 0; background-image: linear-gradient(rgba(0,180,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,180,255,0.03) 1px, transparent 1px); background-size: 50px 50px; }
+
+.page { position: absolute; inset: 0; display: none; flex-direction: column; z-index: 1; }
+.page.active { display: flex; }
+
+/* === 顶部导航栏 === */
+.topbar { height: 60px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: linear-gradient(90deg, rgba(0,10,30,0.98) 0%, rgba(0,30,60,0.95) 50%, rgba(0,10,30,0.98) 100%); border-bottom: 1px solid var(--border-blue); box-shadow: 0 2px 20px rgba(0,180,255,0.15); position: relative; }
+.topbar::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent); animation: scanLine 3s linear infinite; }
+@keyframes scanLine { 0%,100%{opacity:0.3} 50%{opacity:1} }
+.topbar-left { display: flex; align-items: center; gap: 14px; }
+.logo-icon { width: 38px; height: 38px; background: linear-gradient(135deg, #0044aa, #00aaff); border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 0 12px rgba(0,170,255,0.5); animation: logoPulse 2s ease-in-out infinite; }
+@keyframes logoPulse { 0%,100%{box-shadow:0 0 12px rgba(0,170,255,0.5)} 50%{box-shadow:0 0 25px rgba(0,170,255,0.9)} }
+.sys-title { font-size: 18px; font-weight: 700; letter-spacing: 1px; }
+.sys-title span { color: var(--accent-cyan); }
+.breadcrumb { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+.breadcrumb .sep { color: var(--accent-cyan); opacity: 0.5; }
+.breadcrumb .crumb { cursor: pointer; transition: color 0.2s; }
+.breadcrumb .crumb:hover { color: var(--accent-cyan); }
+.breadcrumb .crumb.active { color: var(--accent-cyan); }
+
+.topbar-center { flex: 1; display: flex; justify-content: center; gap: 10px; }
+.filter-item { display: flex; align-items: center; gap: 6px; background: rgba(0,40,80,0.6); border: 1px solid var(--border-blue); border-radius: 6px; padding: 4px 10px; font-size: 12px; }
+.filter-item select, .filter-item input { background: transparent; border: none; outline: none; color: var(--text-primary); font-size: 12px; cursor: pointer; font-family: inherit; }
+.filter-item select option { background: #062040; }
+
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.btn-icon { width: 34px; height: 34px; border-radius: 7px; border: 1px solid var(--border-blue); background: rgba(0,60,120,0.4); color: var(--accent-cyan); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 15px; transition: all 0.2s; }
+.btn-icon:hover { background: rgba(0,180,255,0.2); border-color: var(--accent-cyan); box-shadow: 0 0 10px rgba(0,200,255,0.3); }
+.time-display { font-size: 11px; color: var(--text-secondary); text-align: right; line-height: 1.4; }
+.btn-sm { padding: 4px 12px; border-radius: 5px; font-size: 12px; cursor: pointer; border: 1px solid var(--border-blue); background: rgba(0,40,80,0.5); color: var(--text-secondary); transition: all 0.2s; font-family: inherit; }
+.btn-sm:hover, .btn-sm.active { background: rgba(0,180,255,0.2); border-color: var(--accent-cyan); color: var(--accent-cyan); }
+.btn-primary { padding: 6px 16px; border-radius: 6px; font-size: 12px; cursor: pointer; border: 1px solid var(--accent-cyan); background: rgba(0,180,255,0.15); color: var(--accent-cyan); transition: all 0.2s; font-family: inherit; }
+.btn-primary:hover { background: rgba(0,180,255,0.3); box-shadow: 0 0 12px rgba(0,180,255,0.3); }
+
+/* === 通用面板 === */
+.panel { background: var(--bg-panel); border: 1px solid var(--border-blue); border-radius: 10px; overflow: hidden; }
+.panel-header { padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-blue); background: rgba(0,30,60,0.5); }
+.panel-title { font-size: 12px; font-weight: 600; color: var(--accent-cyan); display: flex; align-items: center; gap: 7px; }
+.panel-title .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-cyan); box-shadow: 0 0 5px var(--accent-cyan); animation: blink 1.5s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* === 一级界面 === */
+.main-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 14px 18px; gap: 14px; }
+.stats-row { display: flex; gap: 10px; flex-shrink: 0; }
+.stat-card { flex: 1; height: 80px; background: var(--bg-card); border: 1px solid var(--border-blue); border-radius: 10px; display: flex; align-items: center; padding: 0 16px; gap: 12px; position: relative; overflow: hidden; transition: all 0.3s; cursor: pointer; }
+.stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--card-accent, var(--accent-cyan)); box-shadow: 0 0 6px var(--card-accent, var(--accent-cyan)); }
+.stat-card:hover { transform: translateY(-2px); border-color: var(--card-accent, var(--accent-cyan)); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+.stat-icon { font-size: 24px; }
+.stat-info .label { font-size: 11px; color: var(--text-secondary); margin-bottom: 3px; }
+.stat-info .value { font-size: 22px; font-weight: 700; color: var(--card-accent, var(--accent-cyan)); line-height: 1; }
+.stat-info .sub { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+.dept-section { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
+.section-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.section-title { font-size: 13px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 7px; }
+.section-title::before { content: ''; width: 3px; height: 14px; background: var(--accent-cyan); border-radius: 2px; box-shadow: 0 0 6px var(--accent-cyan); }
+.dept-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; overflow-y: auto; padding: 4px 2px; flex: 1; }
+.dept-grid::-webkit-scrollbar { width: 4px; }
+.dept-grid::-webkit-scrollbar-thumb { background: rgba(0,180,255,0.3); border-radius: 2px; }
+.dept-card { background: var(--bg-card); border: 1px solid var(--border-blue); border-radius: 12px; padding: 14px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden; }
+.dept-card::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 0%, rgba(0,180,255,0.08), transparent 70%); opacity: 0; transition: opacity 0.3s; }
+.dept-card:hover { transform: translateY(-3px); border-color: var(--border-glow); box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(0,180,255,0.2); }
+.dept-card:hover::after { opacity: 1; }
+.dept-card .dept-icon { width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; position: relative; }
+.dept-card .dept-icon::before { content: ''; position: absolute; inset: -2px; border-radius: 14px; background: conic-gradient(from 0deg, var(--icon-color, #0088ff), transparent, var(--icon-color, #0088ff)); opacity: 0.4; animation: rotateBorder 4s linear infinite; }
+@keyframes rotateBorder { to { transform: rotate(360deg); } }
+.dept-card .dept-name { font-size: 11px; font-weight: 600; text-align: center; color: var(--text-primary); line-height: 1.3; }
+.risk-badges { display: flex; gap: 3px; justify-content: center; flex-wrap: wrap; }
+.risk-badge { padding: 1px 6px; border-radius: 8px; font-size: 9px; font-weight: 600; border: 1px solid; }
+.risk-badge.high { color: var(--high-risk); border-color: var(--high-risk); background: rgba(255,51,102,0.1); }
+.risk-badge.mid { color: var(--mid-risk); border-color: var(--mid-risk); background: rgba(255,153,0,0.1); }
+.risk-badge.low { color: var(--low-risk); border-color: var(--low-risk); background: rgba(0,204,136,0.1); }
+.dept-card .progress-bar { width: 100%; height: 2px; background: rgba(255,255,255,0.06); border-radius: 1px; overflow: hidden; }
+.dept-card .progress-fill { height: 100%; border-radius: 1px; transition: width 0.8s ease; }
+
+/* === 二级界面 === */
+.page2-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 12px 16px; gap: 12px; }
+
+/* 顶部汇总信息 */
+.p2-summary { display: flex; gap: 10px; flex-shrink: 0; }
+.p2-summary-main { flex: 1.5; display: flex; flex-direction: column; gap: 8px; }
+.p2-dept-info { background: var(--bg-card); border: 1px solid var(--border-blue); border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 20px; }
+.p2-dept-name { font-size: 16px; font-weight: 700; color: var(--accent-cyan); display: flex; align-items: center; gap: 8px; }
+.p2-dept-meta { font-size: 11px; color: var(--text-secondary); display: flex; gap: 16px; }
+.p2-dept-meta span { display: flex; align-items: center; gap: 4px; }
+.p2-risk-overview { display: flex; gap: 20px; align-items: center; }
+.p2-risk-stat { text-align: center; }
+.p2-risk-stat .val { font-size: 22px; font-weight: 700; }
+.p2-risk-stat .lbl { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+.p2-summary-chart { flex: 1; display: flex; gap: 10px; }
+.mini-chart-box { flex: 1; background: var(--bg-card); border: 1px solid var(--border-blue); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; }
+.mini-chart-box .chart-title { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; text-align: center; }
+.mini-chart-box canvas { flex: 1; }
+
+/* 双筛选栏 */
+.p2-filters { display: flex; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
+.filter-group { background: var(--bg-panel); border: 1px solid var(--border-blue); border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.filter-group .fg-label { font-size: 11px; color: var(--accent-cyan); font-weight: 600; white-space: nowrap; }
+.filter-group .fg-item { display: flex; align-items: center; gap: 4px; }
+.filter-group select, .filter-group input { background: rgba(0,30,60,0.6); border: 1px solid var(--border-blue); border-radius: 4px; padding: 3px 8px; font-size: 11px; color: var(--text-primary); outline: none; font-family: inherit; }
+.filter-group select option { background: #062040; }
+.filter-tag { display: flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; border: 1px solid var(--border-blue); background: rgba(0,30,60,0.4); cursor: pointer; transition: all 0.2s; }
+.filter-tag:hover, .filter-tag.active { border-color: var(--accent-cyan); background: rgba(0,180,255,0.15); color: var(--accent-cyan); }
+
+/* 预设指标卡片区 */
+.p2-indicators { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; flex-shrink: 0; }
+.indicator-card { background: var(--bg-card); border: 1px solid var(--border-blue); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; transition: all 0.2s; cursor: pointer; }
+.indicator-card:hover { border-color: var(--border-glow); transform: translateY(-1px); }
+.indicator-card .ic-title { font-size: 10px; color: var(--text-dim); display: flex; align-items: center; gap: 5px; }
+.indicator-card .ic-title .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent-cyan); }
+.indicator-card .ic-value { font-size: 20px; font-weight: 700; color: var(--accent-cyan); }
+.indicator-card .ic-value.red { color: var(--high-risk); }
+.indicator-card .ic-value.orange { color: var(--mid-risk); }
+.indicator-card .ic-value.green { color: var(--low-risk); }
+.indicator-card .ic-sub { font-size: 10px; color: var(--text-secondary); }
+.indicator-card .ic-chart { height: 24px; }
+
+/* 主体区域 */
+.p2-main { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 10px; }
+.p2-list-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.p2-list-header .view-tabs { display: flex; gap: 6px; }
+.p2-list-header .sort-btns { display: flex; gap: 6px; font-size: 11px; color: var(--text-secondary); }
+.p2-list-header .sort-btn { padding: 3px 10px; border-radius: 4px; border: 1px solid var(--border-blue); background: rgba(0,30,60,0.4); cursor: pointer; transition: all 0.2s; font-size: 11px; font-family: inherit; color: var(--text-secondary); }
+.p2-list-header .sort-btn:hover, .p2-list-header .sort-btn.active { background: rgba(0,180,255,0.15); border-color: var(--accent-cyan); color: var(--accent-cyan); }
+
+.p2-list-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.p2-list-table-wrap { flex: 1; overflow: auto; border-radius: 8px; border: 1px solid var(--border-blue); }
+.p2-list-table-wrap::-webkit-scrollbar { width: 5px; height: 5px; }
+.p2-list-table-wrap::-webkit-scrollbar-thumb { background: rgba(0,180,255,0.3); border-radius: 3px; }
+
+/* 二级部门列表表格 */
+table.dept-list-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.dept-list-tbl thead { position: sticky; top: 0; z-index: 2; }
+table.dept-list-tbl thead th { background: rgba(0,30,60,0.98); color: var(--accent-cyan); padding: 8px 10px; font-weight: 600; font-size: 11px; border-bottom: 1px solid var(--border-blue); white-space: nowrap; cursor: pointer; }
+table.dept-list-tbl thead th:hover { background: rgba(0,80,160,0.5); }
+table.dept-list-tbl tbody tr { border-bottom: 1px solid rgba(0,60,100,0.3); transition: all 0.2s; cursor: pointer; }
+table.dept-list-tbl tbody tr:hover { background: rgba(0,60,120,0.3); }
+table.dept-list-tbl tbody td { padding: 10px 10px; color: var(--text-primary); vertical-align: middle; }
+table.dept-list-tbl tbody tr:nth-child(even) { background: rgba(0,15,35,0.3); }
+table.dept-list-tbl tbody tr:nth-child(even):hover { background: rgba(0,60,120,0.3); }
+
+.sub-dept-cell { display: flex; align-items: center; gap: 8px; }
+.sub-dept-icon { width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.sub-dept-name { font-weight: 600; }
+.sub-dept-manager { font-size: 10px; color: var(--text-dim); }
+
+.risk-level-pills { display: flex; gap: 4px; }
+.risk-pill { padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; border: 1px solid; }
+.risk-pill.high { color: var(--high-risk); border-color: var(--high-risk); background: rgba(255,51,102,0.12); }
+.risk-pill.mid { color: var(--mid-risk); border-color: var(--mid-risk); background: rgba(255,153,0,0.12); }
+.risk-pill.low { color: var(--low-risk); border-color: var(--low-risk); background: rgba(0,204,136,0.12); }
+.risk-pill.critical { color: var(--critical); border-color: var(--critical); background: rgba(204,0,255,0.12); }
+
+.status-pill { padding: 2px 8px; border-radius: 4px; font-size: 10px; }
+.status-pill.done { color: var(--low-risk); background: rgba(0,204,136,0.12); }
+.status-pill.progress { color: var(--accent-yellow); background: rgba(255,204,0,0.12); }
+.status-pill.pending { color: var(--high-risk); background: rgba(255,51,102,0.12); }
+
+.reform-bar-mini { display: flex; align-items: center; gap: 6px; }
+.reform-bar-mini .bar { flex: 1; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+.reform-bar-mini .bar-fill { height: 100%; background: linear-gradient(90deg, #0088ff, #00ccff); border-radius: 2px; }
+.reform-bar-mini .pct { font-size: 11px; color: var(--text-secondary); min-width: 32px; }
+
+/* 迷你指标格子 */
+.mini-indicators { display: flex; gap: 6px; flex-wrap: wrap; }
+.mini-ind { text-align: center; padding: 2px 6px; background: rgba(0,30,60,0.4); border-radius: 4px; border: 1px solid rgba(0,100,180,0.3); }
+.mini-ind .mi-val { font-size: 12px; font-weight: 700; color: var(--accent-cyan); }
+.mini-ind .mi-lbl { font-size: 9px; color: var(--text-dim); }
+
+/* === 三级界面 === */
+.page3-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 12px 16px; gap: 10px; }
+
+/* 三级筛选区 */
+.p3-filter-bar { display: flex; gap: 10px; flex-shrink: 0; flex-wrap: wrap; align-items: center; }
+.p3-search { display: flex; align-items: center; gap: 8px; background: var(--bg-panel); border: 1px solid var(--border-blue); border-radius: 7px; padding: 5px 12px; flex: 1; min-width: 200px; }
+.p3-search input { flex: 1; background: transparent; border: none; outline: none; color: var(--text-primary); font-size: 12px; font-family: inherit; }
+.p3-search input::placeholder { color: var(--text-dim); }
+.p3-actions { display: flex; gap: 8px; }
+
+/* 三级主体 */
+.p3-main { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 10px; }
+.p3-toolbar { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.p3-toolbar-left { display: flex; gap: 8px; align-items: center; }
+.p3-toolbar-right { font-size: 11px; color: var(--text-dim); }
+.p3-table-wrap { flex: 1; overflow: hidden; display: flex; flex-direction: column; border: 1px solid var(--border-blue); border-radius: 8px; }
+
+/* 冻结列表格 */
+.table-container { flex: 1; overflow: auto; position: relative; }
+.table-container::-webkit-scrollbar { width: 6px; height: 6px; }
+.table-container::-webkit-scrollbar-thumb { background: rgba(0,180,255,0.3); border-radius: 3px; }
+
+table.risk-data-tbl { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 2000px; }
+table.risk-data-tbl thead { position: sticky; top: 0; z-index: 10; }
+table.risk-data-tbl thead th { background: rgba(0,30,60,0.98); color: var(--accent-cyan); padding: 8px 10px; font-weight: 600; font-size: 11px; border-bottom: 2px solid var(--border-blue); border-right: 1px solid rgba(0,80,140,0.3); white-space: nowrap; cursor: pointer; user-select: none; position: relative; }
+table.risk-data-tbl thead th:hover { background: rgba(0,80,160,0.5); }
+table.risk-data-tbl thead th.dragging { opacity: 0.5; }
+table.risk-data-tbl thead th.drag-over { background: rgba(0,180,255,0.2); }
+table.risk-data-tbl thead th .col-drag { cursor: grab; margin-right: 4px; color: var(--text-dim); font-size: 10px; }
+table.risk-data-tbl thead th .sort-icon { margin-left: 3px; color: var(--text-dim); font-size: 9px; }
+table.risk-data-tbl thead th.sorted .sort-icon { color: var(--accent-cyan); }
+table.risk-data-tbl tbody tr { border-bottom: 1px solid rgba(0,60,100,0.3); transition: all 0.15s; }
+table.risk-data-tbl tbody tr:hover { background: rgba(0,60,120,0.3); }
+table.risk-data-tbl tbody tr:nth-child(even) { background: rgba(0,15,35,0.3); }
+table.risk-data-tbl tbody tr:nth-child(even):hover { background: rgba(0,60,120,0.3); }
+table.risk-data-tbl tbody td { padding: 7px 10px; color: var(--text-primary); border-right: 1px solid rgba(0,60,100,0.2); white-space: nowrap; }
+table.risk-data-tbl tbody td:first-child { position: sticky; left: 0; background: rgba(0,20,45,0.9); z-index: 5; font-weight: 600; color: var(--accent-cyan); }
+
+/* 冻结列 */
+table.risk-data-tbl .frozen-col { position: sticky; left: 0; background: rgba(0,20,50,0.98); z-index: 8; box-shadow: 2px 0 8px rgba(0,0,0,0.3); }
+table.risk-data-tbl .frozen-col-2 { position: sticky; left: 80px; background: rgba(0,20,50,0.95); z-index: 8; box-shadow: 2px 0 8px rgba(0,0,0,0.3); }
+
+.level-tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.level-tag.critical { color: var(--critical); background: rgba(204,0,255,0.15); border: 1px solid rgba(204,0,255,0.4); }
+.level-tag.high { color: var(--high-risk); background: rgba(255,51,102,0.15); border: 1px solid rgba(255,51,102,0.4); }
+.level-tag.serious { color: var(--serious); background: rgba(255,102,0,0.15); border: 1px solid rgba(255,102,0,0.4); }
+.level-tag.mid { color: var(--mid-risk); background: rgba(255,153,0,0.15); border: 1px solid rgba(255,153,0,0.4); }
+.level-tag.low { color: var(--low-risk); background: rgba(0,204,136,0.15); border: 1px solid rgba(0,204,136,0.4); }
+
+.ctrl-status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; }
+.ctrl-status.effective { color: var(--low-risk); background: rgba(0,204,136,0.12); }
+.ctrl-status.basic { color: var(--accent-yellow); background: rgba(255,204,0,0.12); }
+.ctrl-status.weak { color: var(--serious); background: rgba(255,102,0,0.12); }
+.ctrl-status.none { color: var(--high-risk); background: rgba(255,51,102,0.12); }
+
+.reform-status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; }
+.reform-status.done { color: var(--low-risk); background: rgba(0,204,136,0.12); }
+.reform-status.progress { color: var(--accent-yellow); background: rgba(255,204,0,0.12); }
+.reform-status.pending { color: var(--high-risk); background: rgba(255,51,102,0.12); }
+.reform-status.overdue { color: #ff00ff; background: rgba(255,0,255,0.12); }
+
+.trend-tag { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+.trend-tag.up { color: var(--high-risk); background: rgba(255,51,102,0.1); }
+.trend-tag.down { color: var(--low-risk); background: rgba(0,204,136,0.1); }
+.trend-tag.stable { color: var(--text-dim); background: rgba(100,150,200,0.1); }
+
+/* 底部状态栏 */
+.p3-status-bar { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; padding: 6px 0; font-size: 11px; color: var(--text-dim); }
+.p3-status-bar .col-info { display: flex; gap: 16px; }
+
+/* 悬浮提示 */
+.tooltip { position: fixed; z-index: 9999; pointer-events: none; background: rgba(2,15,35,0.97); border: 1px solid var(--border-glow); border-radius: 10px; padding: 12px 16px; min-width: 180px; box-shadow: 0 6px 24px rgba(0,0,0,0.7), 0 0 16px rgba(0,180,255,0.2); display: none; transition: opacity 0.15s; }
+.tooltip.show { display: block; }
+.tooltip-title { font-size: 13px; font-weight: 700; color: var(--accent-cyan); margin-bottom: 8px; border-bottom: 1px solid var(--border-blue); padding-bottom: 6px; }
+.tooltip-row { display: flex; justify-content: space-between; gap: 16px; font-size: 11px; margin: 4px 0; }
+.tooltip-row .tkey { color: var(--text-secondary); }
+.tooltip-row .tval { font-weight: 600; color: var(--text-primary); }
+
+/* 弹窗 */
+.modal-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; }
+.modal-overlay.show { display: flex; animation: fadeIn 0.2s ease; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.modal { background: rgba(3,18,42,0.98); border: 1px solid var(--border-glow); border-radius: 14px; padding: 20px; min-width: 500px; max-width: 700px; width: 90%; box-shadow: 0 16px 48px rgba(0,0,0,0.8), 0 0 24px rgba(0,180,255,0.2); animation: slideUp 0.25s ease; }
+@keyframes slideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
+.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.modal-title { font-size: 15px; font-weight: 700; color: var(--accent-cyan); }
+.modal-close { cursor: pointer; font-size: 18px; color: var(--text-dim); transition: color 0.2s; }
+.modal-close:hover { color: var(--high-risk); }
+.modal-body { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-field .mkey { font-size: 10px; color: var(--text-dim); margin-bottom: 3px; }
+.modal-field .mval { font-size: 12px; color: var(--text-primary); padding: 6px 10px; background: rgba(0,30,60,0.5); border-radius: 5px; border: 1px solid var(--border-blue); }
+.modal-field.full { grid-column: 1 / -1; }
+.modal-actions { margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px; }
+
+/* 字段设置弹窗 */
+.field-settings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px 0; max-height: 400px; overflow-y: auto; }
+.field-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: rgba(0,20,40,0.4); border: 1px solid var(--border-blue); border-radius: 6px; cursor: pointer; transition: all 0.2s; font-size: 12px; }
+.field-item:hover { border-color: var(--accent-cyan); }
+.field-item input[type=checkbox] { accent-color: var(--accent-cyan); cursor: pointer; }
+.field-item.dragging { opacity: 0.5; border-color: var(--accent-cyan); }
+.field-item.drag-over { background: rgba(0,180,255,0.1); border-color: var(--accent-cyan); }
+
+/* 对比视图 */
+.compare-view { display: none; flex-direction: column; gap: 10px; flex: 1; overflow: hidden; }
+.compare-view.active { display: flex; }
+.table-view { display: flex; flex-direction: column; gap: 10px; flex: 1; overflow: hidden; }
+.table-view.hidden { display: none; }
+
+/* 进度条 */
+.prog-bar { height: 5px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+.prog-fill.green { background: linear-gradient(90deg, #00cc88, #00ff88); }
+.prog-fill.yellow { background: linear-gradient(90deg, #ff9900, #ffcc00); }
+.prog-fill.red { background: linear-gradient(90deg, #ff3366, #ff0044); }
+
+/* 扫描线动效 */
+.scan-line { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, rgba(0,212,255,0.6), transparent); pointer-events: none; animation: scanDown 4s linear infinite; }
+@keyframes scanDown { 0%{top:0;opacity:1} 100%{top:100%;opacity:0} }
+</style>
+</head>
+<body>
+<canvas id="particles-canvas"></canvas>
+
+<!-- ========== 一级界面 ========== -->
+<div class="page active" id="page1">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <div class="sys-title">企业<span>风险库</span>可视化展示系统</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:1px;">ENTERPRISE RISK VISUALIZATION PLATFORM</div>
+      </div>
+    </div>
+    <div class="topbar-center">
+      <div class="filter-item">🏢 <select id="companyFilter"><option>全集团</option><option>总部</option><option>华南区</option></select></div>
+      <div class="filter-item">📅 <select id="yearFilter"><option>2026年</option><option>2025年</option></select></div>
+      <div class="filter-item">⚠️ <select><option>全部等级</option><option>高风险</option><option>中风险</option></select></div>
+      <div class="filter-item">📋 <select><option>全部状态</option><option>已整改</option><option>整改中</option></select></div>
+    </div>
+    <div class="topbar-right">
+      <div class="time-display" id="clockDisplay">2026-05-15<br>15:10:00</div>
+      <div class="btn-icon" title="刷新" onclick="refreshData()">🔄</div>
+      <div class="btn-icon" title="导出">📊</div>
+    </div>
+  </div>
+  <div class="main-content">
+    <div class="stats-row">
+      <div class="stat-card" style="--card-accent:#00d4ff"><div class="stat-icon">📋</div><div class="stat-info"><div class="label">风险总数</div><div class="value" data-target="486">486</div><div class="sub">较上月 ↑12条</div></div></div>
+      <div class="stat-card" style="--card-accent:#cc00ff"><div class="stat-icon">💎</div><div class="stat-info"><div class="label">重大风险</div><div class="value" style="color:var(--critical)" data-target="42">42</div><div class="sub">较上月 ↑3条</div></div></div>
+      <div class="stat-card" style="--card-accent:#ff3366"><div class="stat-icon">🔴</div><div class="stat-info"><div class="label">高风险</div><div class="value" style="color:var(--high-risk)" data-target="68">68</div><div class="sub">较上月 ↑5条</div></div></div>
+      <div class="stat-card" style="--card-accent:#ff9900"><div class="stat-icon">🟡</div><div class="stat-info"><div class="label">中风险</div><div class="value" style="color:var(--mid-risk)" data-target="214">214</div><div class="sub">较上月 ↑7条</div></div></div>
+      <div class="stat-card" style="--card-accent:#00cc88"><div class="stat-icon">🟢</div><div class="stat-info"><div class="label">低风险</div><div class="value" style="color:var(--low-risk)" data-target="162">162</div><div class="sub">较上月 ↓3条</div></div></div>
+      <div class="stat-card" style="--card-accent:#ff6600"><div class="stat-icon">🔧</div><div class="stat-info"><div class="label">未完成整改</div><div class="value" style="color:#ff6600" data-target="127">127</div><div class="sub">整改率 73.8%</div></div></div>
+    </div>
+    <div class="dept-section">
+      <div class="section-header">
+        <div class="section-title">一级部门总览</div>
+        <div class="section-actions">
+          <button class="btn-sm active" onclick="setLayout('grid',this)">⊞ 宫格</button>
+          <button class="btn-sm" onclick="setLayout('list',this)">☰ 列表</button>
+        </div>
+      </div>
+      <div class="dept-grid" id="deptGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 二级界面 ========== -->
+<div class="page" id="page2">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <div class="sys-title">企业<span>风险库</span>可视化展示系统</div>
+        <div class="breadcrumb" style="margin-top:2px;">
+          <span class="crumb" onclick="goPage(1)">首页</span>
+          <span class="sep">›</span>
+          <span class="crumb active" id="p2DeptName">财务管理部</span>
+          <span class="sep">›</span>
+          <span class="crumb active">部门汇总</span>
+        </div>
+      </div>
+    </div>
+    <div class="topbar-center">
+      <button class="btn-primary" onclick="toggleCompareMode()">📊 对比模式</button>
+    </div>
+    <div class="topbar-right">
+      <button class="btn-sm" onclick="goPage(1)">← 返回</button>
+      <div class="btn-icon">📊</div>
+      <div class="btn-icon">🔄</div>
+    </div>
+  </div>
+  <div class="scan-line"></div>
+
+  <div class="page2-content">
+    <!-- 顶部部门整体信息 -->
+    <div class="p2-summary">
+      <div class="p2-summary-main">
+        <div class="p2-dept-info">
+          <div class="p2-dept-name" id="p2DeptNameFull">💰 财务管理部</div>
+          <div class="p2-dept-meta">
+            <span>📋 风险总数：<b id="p2TotalRisk">135</b> 条</span>
+            <span>🏢 二级部门：<b id="p2SubCount">4</b> 个</span>
+            <span>👤 负责人：张总监</span>
+            <span>📅 更新：2026-05-10</span>
+          </div>
+          <div class="p2-risk-overview" id="p2RiskOverview"></div>
+        </div>
+        <div class="p2-summary-chart">
+          <div class="mini-chart-box"><div class="chart-title">高中低风险占比</div><div id="p2PieChart" style="flex:1;"></div></div>
+          <div class="mini-chart-box"><div class="chart-title">部门风险数量分布</div><div id="p2BarChart" style="flex:1;"></div></div>
+          <div class="mini-chart-box"><div class="chart-title">整改率进度</div><div id="p2ProgressChart" style="flex:1;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 双筛选栏 -->
+    <div class="p2-filters">
+      <div class="filter-group">
+        <span class="fg-label">🏢 部门筛选：</span>
+        <div class="fg-item"><select id="filterLevel2"><option>全部二级部门</option><option>资金管理处</option><option>会计核算处</option><option>税务管理处</option><option>成本控制处</option></select></div>
+        <div class="fg-item"><select id="filterLevel3"><option>全部三级部门</option><option>现金管理组</option><option>银行关系组</option></select></div>
+        <button class="btn-sm" onclick="renderDeptList()">🔍 搜索</button>
+      </div>
+      <div class="filter-group">
+        <span class="fg-label">📊 指标筛选：</span>
+        <span class="filter-tag active" data-metric="count">风险数量</span>
+        <span class="filter-tag" data-metric="trend">风险趋势走势</span>
+        <span class="filter-tag" data-metric="new">新增风险</span>
+        <span class="filter-tag" data-metric="eliminated">消除风险</span>
+        <span class="filter-tag" data-metric="prob">概率分布</span>
+        <span class="filter-tag" data-metric="freq">频次分布</span>
+        <span class="filter-tag" data-metric="impact">影响程度</span>
+        <span class="filter-tag" data-metric="scope">影响范围</span>
+      </div>
+    </div>
+
+    <!-- 预设指标卡片 -->
+    <div class="p2-indicators" id="p2Indicators"></div>
+
+    <!-- 视图切换 + 列表 -->
+    <div class="p2-main">
+      <div class="p2-list-header">
+        <div class="view-tabs">
+          <button class="btn-sm active" onclick="setViewMode('l2',this)">📋 二级部门视图</button>
+          <button class="btn-sm" onclick="setViewMode('l3',this)">📋 三级部门视图</button>
+        </div>
+        <div class="sort-btns">
+          <button class="sort-btn active">按风险数 ↓</button>
+          <button class="sort-btn">按整改率</button>
+          <button class="sort-btn">按新增</button>
+          <button class="btn-sm" onclick="toggleListView()">☰/⊞</button>
+        </div>
+      </div>
+      <div class="p2-list-area">
+        <div class="p2-list-table-wrap">
+          <table class="dept-list-tbl" id="p2Table">
+            <thead id="p2TableHead"></thead>
+            <tbody id="p2TableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 三级界面 ========== -->
+<div class="page" id="page3">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <div class="sys-title">企业<span>风险库</span>可视化展示系统</div>
+        <div class="breadcrumb" style="margin-top:2px;">
+          <span class="crumb" onclick="goPage(1)">首页</span>
+          <span class="sep">›</span>
+          <span class="crumb" onclick="goPage(2)" id="p3DeptName">财务管理部</span>
+          <span class="sep">›</span>
+          <span class="crumb active" id="p3SubName">资金管理处</span>
+          <span class="sep">›</span>
+          <span class="crumb active">风险明细</span>
+        </div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn-sm" onclick="goPage(2)">← 返回</button>
+      <div class="btn-icon">📊</div>
+      <div class="btn-icon">🔄</div>
+    </div>
+  </div>
+
+  <div class="page3-content">
+    <!-- 筛选栏 -->
+    <div class="p3-filter-bar">
+      <div class="p3-search">
+        <span>🔍</span>
+        <input type="text" id="p3SearchInput" placeholder="搜索风险名称、编号、描述..." oninput="filterTable()">
+      </div>
+      <div class="filter-item">⚠️ <select id="p3LevelFilter" onchange="filterTable()"><option>全部等级</option><option>重大风险</option><option>高风险</option><option>较严重</option><option>中风险</option><option>低风险</option></select></div>
+      <div class="filter-item">🔖 <select id="p3CategoryFilter" onchange="filterTable()"><option>全部分类</option><option>合规风险</option><option>操作风险</option><option>财务风险</option><option>安全风险</option><option>战略风险</option></select></div>
+      <div class="filter-item">📋 <select id="p3CtrlFilter" onchange="filterTable()"><option>控制状态</option><option>有效</option><option>基本有效</option><option>弱有效</option><option>无效</option></select></div>
+      <div class="filter-item">🔧 <select id="p3ReformFilter" onchange="filterTable()"><option>整改状态</option><option>已整改</option><option>整改中</option><option>未整改</option><option>逾期未整改</option></select></div>
+    </div>
+
+    <!-- 主体 -->
+    <div class="p3-main">
+      <!-- 视图切换 -->
+      <div class="p3-toolbar">
+        <div class="p3-toolbar-left">
+          <button class="btn-sm active" onclick="setP3View('table',this)">📋 表格视图</button>
+          <button class="btn-sm" onclick="setP3View('card',this)">⊞ 卡片视图</button>
+          <button class="btn-primary" onclick="showFieldSettings()">⚙️ 字段设置</button>
+        </div>
+        <div class="p3-toolbar-right" id="p3RecordCount">共 <b>0</b> 条记录</div>
+      </div>
+
+      <!-- 表格容器 -->
+      <div class="table-container" id="p3TableContainer">
+        <table class="risk-data-tbl" id="p3Table">
+          <thead id="p3TableHead"></thead>
+          <tbody id="p3TableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- 底部状态栏 -->
+      <div class="p3-status-bar">
+        <div class="col-info">
+          <span>已选 <b id="selCount">0</b> 条</span>
+          <span>显示 <b id="dispCount">0</b> / <b id="totalCount">0</b> 条</span>
+        </div>
+        <div style="display:flex;gap:16px;">
+          <span class="btn-sm" onclick="exportData()">📥 导出</span>
+          <span>已保存视图</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal" style="max-width:780px;">
+    <div class="modal-header">
+      <div class="modal-title">🔍 风险详情</div>
+      <div class="modal-close" onclick="closeModal('detailModal')">✕</div>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- 字段设置弹窗 -->
+<div class="modal-overlay" id="fieldModal">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <div class="modal-title">⚙️ 字段设置（可拖拽调整顺序）</div>
+      <div class="modal-close" onclick="closeModal('fieldModal')">✕</div>
+    </div>
+    <div class="field-settings" id="fieldSettings"></div>
+    <div class="modal-actions">
+      <button class="btn-sm" onclick="closeModal('fieldModal')">取消</button>
+      <button class="btn-primary" onclick="applyFields()">应用并保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ===================================================== 数据模型 =====================================================
+const DEPT_L1 = [
+  { id:1, name:'技术委员会', icon:'🔬', color:'#0088ff', risks:[8,18,22], reform:88, subs:[{name:'技术战略处',icon:'🎯',risks:[3,8,9],reform:90,mgr:'张主任',ctrlRate:85},{name:'标准规范处',icon:'📋',risks:[3,6,7],reform:88,mgr:'李总监',ctrlRate:82},{name:'技术评审处',icon:'🔍',risks:[2,4,6],reform:85,mgr:'王经理',ctrlRate:80}] },
+  { id:2, name:'网络产品线', icon:'🌐', color:'#00aa88', risks:[22,38,28], reform:72, subs:[{name:'路由器事业部',icon:'📡',risks:[8,14,10],reform:68,mgr:'刘经理',ctrlRate:70},{name:'交换机事业部',icon:'🔀',risks:[7,13,9],reform:74,mgr:'陈总监',ctrlRate:72},{name:'无线产品部',icon:'📶',risks:[5,8,6],reform:76,mgr:'赵主任',ctrlRate:75},{name:'网络芯片部',icon:'💾',risks:[2,3,3],reform:80,mgr:'周经理',ctrlRate:78}] },
+  { id:3, name:'云与计算存储产品线', icon:'☁️', color:'#aa44ff', risks:[18,32,25], reform:75, subs:[{name:'云计算事业部',icon:'🖥️',risks:[7,12,9],reform:72,mgr:'吴经理',ctrlRate:70},{name:'存储产品部',icon:'💿',risks:[6,11,8],reform:76,mgr:'郑总监',ctrlRate:74},{name:'服务器事业部',icon:'🖨️',risks:[3,6,5],reform:78,mgr:'孙主任',ctrlRate:76},{name:'数据中心部',icon:'🏢',risks:[2,3,3],reform:82,mgr:'钱经理',ctrlRate:80}] },
+  { id:4, name:'安全产品线', icon:'🛡️', color:'#ff6600', risks:[15,28,20], reform:78, subs:[{name:'防火墙事业部',icon:'🔥',risks:[6,11,8],reform:76,mgr:'冯经理',ctrlRate:74},{name:'入侵检测部',icon:'👁️',risks:[5,9,6],reform:78,mgr:'卫总监',ctrlRate:76},{name:'安全芯片部',icon:'🔐',risks:[3,5,4],reform:80,mgr:'蒋主任',ctrlRate:78},{name:'云安全部',icon:'🔒',risks:[1,3,2],reform:85,mgr:'沈经理',ctrlRate:82}] },
+  { id:5, name:'智能终端产品线', icon:'📱', color:'#ff3366', risks:[20,35,30], reform:70, subs:[{name:'手机事业部',icon:'📲',risks:[8,14,12],reform:68,mgr:'韩经理',ctrlRate:68},{name:'平板事业部',icon:'📟',risks:[5,9,8],reform:72,mgr:'杨总监',ctrlRate:70},{name:'穿戴设备部',icon:'⌚',risks:[4,7,6],reform:74,mgr:'朱主任',ctrlRate:72},{name:'IoT产品部',icon:'🔗',risks:[3,5,4],reform:70,mgr:'秦经理',ctrlRate:68}] },
+  { id:6, name:'半导体产品线', icon:'🔌', color:'#ffaa00', risks:[25,42,35], reform:65, subs:[{name:'芯片设计部',icon:'🎨',risks:[10,16,14],reform:62,mgr:'尤经理',ctrlRate:62},{name:'晶圆制造部',icon:'🏭',risks:[8,14,12],reform:64,mgr:'许总监',ctrlRate:64},{name:'封装测试部',icon:'🔧',risks:[5,8,6],reform:68,mgr:'何主任',ctrlRate:66},{name:'材料研发部',icon:'⚗️',risks:[2,4,3],reform:72,mgr:'吕经理',ctrlRate:70}] },
+  { id:7, name:'研究开发部', icon:'🔭', color:'#44bbff', risks:[12,25,20], reform:82, subs:[{name:'基础研究处',icon:'📚',risks:[4,8,7],reform:85,mgr:'施经理',ctrlRate:82},{name:'应用研究处',icon:'💡',risks:[4,9,7],reform:80,mgr:'张总监',ctrlRate:78},{name:'前沿技术处',icon:'🚀',risks:[3,5,4],reform:82,mgr:'孔主任',ctrlRate:80},{name:'实验室管理处',icon:'🧪',risks:[1,3,2],reform:88,mgr:'曹经理',ctrlRate:85}] },
+  { id:8, name:'解决方案部', icon:'🧩', color:'#88ff44', risks:[10,22,18], reform:80, subs:[{name:'行业方案处',icon:'🏭',risks:[4,9,7],reform:78,mgr:'严经理',ctrlRate:76},{name:'技术方案处',icon:'⚙️',risks:[3,7,6],reform:82,mgr:'华总监',ctrlRate:80},{name:'方案交付处',icon:'📦',risks:[2,4,3],reform:84,mgr:'金主任',ctrlRate:82},{name:'售前支持处',icon:'🤝',risks:[1,2,2],reform:86,mgr:'魏经理',ctrlRate:84}] },
+  { id:9, name:'技术服务部', icon:'🔧', color:'#ff44aa', risks:[14,26,22], reform:76, subs:[{name:'技术支持处',icon:'📞',risks:[5,10,8],reform:74,mgr:'陶经理',ctrlRate:72},{name:'运维服务处',icon:'🔩',risks:[5,9,8],reform:76,mgr:'姜总监',ctrlRate:74},{name:'培训认证处',icon:'🎓',risks:[3,5,4],reform:80,mgr:'戚主任',ctrlRate:78},{name:'客户成功处',icon:'✅',risks:[1,2,2],reform:82,mgr:'谢经理',ctrlRate:80}] },
+  { id:10, name:'行业BG', icon:'🏢', color:'#ffdd00', risks:[18,30,25], reform:74, subs:[{name:'政府行业处',icon:'🏛️',risks:[7,11,9],reform:72,mgr:'邹经理',ctrlRate:70},{name:'金融行业处',icon:'💰',risks:[6,10,8],reform:74,mgr:'喻总监',ctrlRate:72},{name:'能源行业处',icon:'⚡',risks:[3,5,4],reform:76,mgr:'柏主任',ctrlRate:74},{name:'交通行业处',icon:'🚄',risks:[2,4,4],reform:78,mgr:'水经理',ctrlRate:76}] },
+  { id:11, name:'商业BG', icon:'💼', color:'#44aaff', risks:[15,28,24], reform:75, subs:[{name:'企业商用处',icon:'🏢',risks:[6,11,9],reform:74,mgr:'窦经理',ctrlRate:72},{name:'SMB事业部',icon:'📊',risks:[5,9,8],reform:76,mgr:'章总监',ctrlRate:74},{name:'渠道管理处',icon:'🤝',risks:[3,5,4],reform:78,mgr:'云主任',ctrlRate:76},{name:'合作伙伴处',icon:'🤲',risks:[1,3,3],reform:80,mgr:'苏经理',ctrlRate:78}] },
+  { id:12, name:'运营商BG', icon:'📡', color:'#ff8844', risks:[20,35,28], reform:70, subs:[{name:'国内运营商处',icon:'📞',risks:[8,14,11],reform:68,mgr:'潘经理',ctrlRate:68},{name:'海外运营商处',icon:'🌍',risks:[7,12,9],reform:70,mgr:'葛总监',ctrlRate:70},{name:'5G业务处',icon:'📶',risks:[3,6,5],reform:74,mgr:'奚主任',ctrlRate:72},{name:'核心网处',icon:'🌐',risks:[2,3,3],reform:72,mgr:'范经理',ctrlRate:70}] },
+  { id:13, name:'国际BG', icon:'🌍', color:'#0088ff', risks:[16,28,22], reform:73, subs:[{name:'亚太区',icon:'🌏',risks:[6,10,8],reform:72,mgr:'彭经理',ctrlRate:70},{name:'欧洲区',icon:'🏰',risks:[5,9,7],reform:74,mgr:'郎总监',ctrlRate:72},{name:'中东非洲区',icon:'🕌',risks:[3,5,4],reform:76,mgr:'鲁主任',ctrlRate:74},{name:'拉美区',icon:'🌎',risks:[2,4,3],reform:72,mgr:'韦经理',ctrlRate:70}] },
+  { id:14, name:'供应链管理部', icon:'🚚', color:'#aa44ff', risks:[28,45,32], reform:68, subs:[{name:'采购管理处',icon:'🛒',risks:[10,16,12],reform:65,mgr:'昌经理',ctrlRate:64},{name:'供应商管理处',icon:'📋',risks:[9,14,10],reform:68,mgr:'马总监',ctrlRate:66},{name:'仓储物流处',icon:'📦',risks:[6,10,7],reform:70,mgr:'苗主任',ctrlRate:68},{name:'质量管理处',icon:'✅',risks:[3,5,3],reform:72,mgr:'凤经理',ctrlRate:70}] },
+  { id:15, name:'总裁办公室', icon:'👔', color:'#ff6600', risks:[6,12,10], reform:90, subs:[{name:'行政事务处',icon:'📝',risks:[2,5,4],reform:92,mgr:'花经理',ctrlRate:90},{name:'董事会秘书处',icon:'📜',risks:[2,4,3],reform:90,mgr:'方总监',ctrlRate:88},{name:'公关关系处',icon:'🎤',risks:[1,2,2],reform:88,mgr:'俞主任',ctrlRate:86},{name:'品牌宣传处',icon:'📢',risks:[1,1,1],reform:92,mgr:'任经理',ctrlRate:90}] },
+  { id:16, name:'运营管理部', icon:'⚙️', color:'#00aa88', risks:[14,25,20], reform:78, subs:[{name:'流程管理处',icon:'📊',risks:[5,9,7],reform:76,mgr:'袁经理',ctrlRate:74},{name:'质量管理处',icon:'📈',risks:[4,8,6],reform:78,mgr:'柳总监',ctrlRate:76},{name:'项目管理处',icon:'📅',risks:[3,5,4],reform:80,mgr:'酆主任',ctrlRate:78},{name:'运营管理处',icon:'🏭',risks:[2,3,3],reform:82,mgr:'鲍经理',ctrlRate:80}] },
+  { id:17, name:'财经管理部', icon:'💰', color:'#ffaa00', risks:[20,32,25], reform:76, subs:[{name:'财务核算处',icon:'📊',risks:[7,11,9],reform:74,mgr:'史经理',ctrlRate:72},{name:'资金管理处',icon:'💵',risks:[6,10,8],reform:76,mgr:'唐总监',ctrlRate:74},{name:'预算管理处',icon:'📋',risks:[4,6,5],reform:78,mgr:'费主任',ctrlRate:76},{name:'税务管理处',icon:'📑',risks:[3,5,3],reform:80,mgr:'廉经理',ctrlRate:78}] },
+  { id:18, name:'人力资源部', icon:'👥', color:'#ff3366', risks:[12,22,18], reform:82, subs:[{name:'招聘配置处',icon:'🎯',risks:[4,8,6],reform:80,mgr:'岑经理',ctrlRate:78},{name:'薪酬绩效处',icon:'💳',risks:[4,7,6],reform:82,mgr:'薛总监',ctrlRate:80},{name:'培训发展处',icon:'🎓',risks:[3,5,4],reform:84,mgr:'雷主任',ctrlRate:82},{name:'员工关系处',icon:'🤝',risks:[1,2,2],reform:86,mgr:'贺经理',ctrlRate:84}] },
+  { id:19, name:'法务与道德合规部', icon:'⚖️', color:'#44bbff', risks:[10,18,15], reform:85, subs:[{name:'法务事务处',icon:'📜',risks:[4,7,6],reform:84,mgr:'倪经理',ctrlRate:82},{name:'合规管理处',icon:'✅',risks:[3,6,5],reform:86,mgr:'汤总监',ctrlRate:84},{name:'知识产权处',icon:'📚',risks:[2,3,3],reform:88,mgr:'滕主任',ctrlRate:86},{name:'道德合规处',icon:'🛡️',risks:[1,2,1],reform:90,mgr:'殷经理',ctrlRate:88}] },
+  { id:20, name:'品牌营销部', icon:'📢', color:'#88ff44', risks:[8,18,20], reform:80, subs:[{name:'品牌管理处',icon:'🎨',risks:[3,7,8],reform:78,mgr:'罗经理',ctrlRate:76},{name:'市场推广处',icon:'📈',risks:[3,6,7],reform:80,mgr:'毕总监',ctrlRate:78},{name:'数字营销处',icon:'💻',risks:[1,3,3],reform:82,mgr:'郝主任',ctrlRate:80},{name:'活动管理处',icon:'🎉',risks:[1,2,2],reform:84,mgr:'邬经理',ctrlRate:82}] },
+  { id:21, name:'信息技术部', icon:'💻', color:'#ff44aa', risks:[16,28,22], reform:74, subs:[{name:'系统开发处',icon:'⌨️',risks:[6,10,8],reform:72,mgr:'常经理',ctrlRate:70},{name:'IT运维处',icon:'🔧',risks:[5,9,7],reform:74,mgr:'乐总监',ctrlRate:72},{name:'数据管理处',icon:'🗄️',risks:[3,5,4],reform:76,mgr:'于主任',ctrlRate:74},{name:'信息安全处',icon:'🔒',risks:[2,4,3],reform:78,mgr:'时经理',ctrlRate:76}] },
+  { id:22, name:'互联网与定制化事业群', icon:'🌐', color:'#ffdd00', risks:[18,30,25], reform:72, subs:[{name:'互联网平台处',icon:'🖥️',risks:[7,11,9],reform:70,mgr:'傅经理',ctrlRate:68},{name:'定制开发处',icon:'🔧',risks:[6,10,8],reform:72,mgr:'皮总监',ctrlRate:70},{name:'生态合作处',icon:'🤝',risks:[3,5,4],reform:74,mgr:'卞主任',ctrlRate:72},{name:'用户运营处',icon:'👥',risks:[2,4,4],reform:76,mgr:'齐经理',ctrlRate:74}] },
+  { id:23, name:'集团代表处', icon:'🏛️', color:'#44aaff', risks:[8,15,12], reform:85, subs:[{name:'华北代表处',icon:'🏢',risks:[3,5,4],reform:84,mgr:'康经理',ctrlRate:82},{name:'华东代表处',icon:'🏙️',risks:[2,5,4],reform:86,mgr:'伍总监',ctrlRate:84},{name:'华南代表处',icon:'🌴',risks:[2,3,3],reform:84,mgr:'余主任',ctrlRate:82},{name:'西部代表处',icon:'🏔️',risks:[1,2,1],reform:88,mgr:'元经理',ctrlRate:86}] },
+  { id:24, name:'安全产品线', icon:'🛡️', color:'#ff8844', risks:[15,28,20], reform:78, subs:[{name:'防火墙事业部',icon:'🔥',risks:[6,11,8],reform:76,mgr:'顾经理',ctrlRate:74},{name:'入侵检测部',icon:'👁️',risks:[5,9,6],reform:78,mgr:'孟总监',ctrlRate:76},{name:'安全芯片部',icon:'🔐',risks:[3,5,4],reform:80,mgr:'平主任',ctrlRate:78},{name:'云安全部',icon:'🔒',risks:[1,3,2],reform:85,mgr:'黄经理',ctrlRate:82}] },
+];
+
+// 全部字段定义
+const ALL_FIELDS = [
+  { key:'seq', label:'序号', width:50, frozen:true },
+  { key:'riskCode', label:'风险编号', width:100, frozen:true },
+  { key:'riskName', label:'风险名称', width:180 },
+  { key:'category', label:'风险分类', width:90 },
+  { key:'dept1', label:'一级部门', width:100 },
+  { key:'dept2', label:'二级部门', width:100 },
+  { key:'dept3', label:'三级部门', width:100 },
+  { key:'level', label:'自评等级', width:90 },
+  { key:'levelAfter', label:'评级后等级', width:90 },
+  { key:'prob', label:'发生概率', width:90 },
+  { key:'probScore', label:'概率评分', width:80 },
+  { key:'impact', label:'影响程度', width:90 },
+  { key:'impactScore', label:'影响评分', width:80 },
+  { key:'riskScore', label:'风险值', width:70 },
+  { key:'secretLevel', label:'密级', width:60 },
+  { key:'domain', label:'风险领域', width:90 },
+  { key:'focusArea', label:'重点关注领域', width:120 },
+  { key:'trend', label:'风险趋势', width:80 },
+  { key:'newRisk', label:'新增/消除', width:90 },
+  { key:'occurFreq', label:'发生频次', width:90 },
+  { key:'occurFreqScore', label:'频次评分', width:80 },
+  { key:'impactScope', label:'影响范围', width:90 },
+  { key:'impactScopeScore', label:'范围评分', width:80 },
+  { key:'ctrlStatus', label:'控制状态', width:90 },
+  { key:'ctrlMeasure', label:'控制措施', width:180 },
+  { key:'crossDeptCtrl', label:'跨部门协同控制', width:120 },
+  { key:'owner', label:'责任人', width:80 },
+  { key:'reformStatus', label:'整改状态', width:90 },
+  { key:'reformMeasure', label:'整改措施', width:180 },
+  { key:'reformDue', label:'整改期限', width:100 },
+  { key:'reformProgress', label:'整改进度', width:80 },
+  { key:'reformResult', label:'整改结果', width:80 },
+  { key:'deviateCount', label:'偏离数量', width:80 },
+  { key:'annualResult', label:'年度整改状态', width:110 },
+  { key:'createDate', label:'创建日期', width:100 },
+  { key:'updateDate', label:'更新日期', width:100 },
+  { key:'remark', label:'备注', width:150 },
+];
+
+// 生成真实风险数据
+function generateRiskData() {
+  const items = [];
+  const categories = ['合规风险','操作风险','财务风险','安全风险','战略风险','运营风险','法律风险'];
+  const domains = ['资金管理','采购管理','人力资源','信息安全','合同管理','工程质量','环境保护','财务报告'];
+  const focusAreas = ['内部控制','合规要求','数据安全','人员配置','流程优化','成本控制'];
+  const levels = ['critical','high','serious','mid','low'];
+  const levelLabels = {critical:'重大风险',high:'高风险',serious:'较严重',mid:'中风险',low:'低风险'};
+  const levelWeights = [0.08,0.14,0.18,0.35,0.25];
+  const ctrlStatuses = ['effective','basic','weak','none'];
+  const ctrlLabels = {effective:'有效',basic:'基本有效',weak:'弱有效',none:'无效'};
+  const reformStatuses = ['done','progress','pending','overdue'];
+  const reformLabels = {done:'已整改',progress:'整改中',pending:'未整改',overdue:'逾期未整改'};
+  const trends = ['up','stable','down'];
+  const trendLabels = {up:'↑上升',stable:'→持平',down:'↓下降'};
+  const secrets = ['机密','秘密','内部','公开'];
+
+  let seq = 1;
+  DEPT_L1.forEach(d1 => {
+    d1.subs.forEach(d2 => {
+      const riskCount = Math.floor(Math.random()*8)+3;
+      for (let i = 0; i < riskCount; i++) {
+        const r = Math.random();
+        let level = 'mid';
+        let cumW = 0;
+        for (let j = 0; j < levelWeights.length; j++) {
+          cumW += levelWeights[j];
+          if (r < cumW) { level = levels[j]; break; }
+        }
+        const prob = ['极低','低','中','较高','高'][Math.floor(Math.random()*5)];
+        const impact = ['忽略','一般','较大','重大','灾难'][Math.floor(Math.random()*5)];
+        const ctrl = ctrlStatuses[Math.floor(Math.random()*4)];
+        const reform = level === 'low' ? 'done' : level === 'critical' ? (Math.random()>0.5?'pending':'overdue') : (Math.random()>0.6?'progress':'done');
+        const trend = trends[Math.floor(Math.random()*3)];
+        const newRisk = Math.random()>0.7 ? (Math.random()>0.5?'新增':'消除') : '持续';
+
+        items.push({
+          seq: seq++,
+          riskCode: `RISK-${String(seq-1).padStart(4,'0')}`,
+          riskName: `${d2.name.replace('处','')}${['风险管控不足','流程存在漏洞','合规性待提升','内控缺陷','监督不到位'][Math.floor(Math.random()*5)]}`,
+          category: categories[Math.floor(Math.random()*categories.length)],
+          dept1: d1.name,
+          dept2: d2.name,
+          dept3: `${d2.name.replace('处','')}-${['A组','B组','C组'][Math.floor(Math.random()*3)]}`,
+          level,
+          levelAfter: level === 'low' ? '低风险' : level === 'critical' ? '重大风险' : level === 'high' ? '高风险' : level === 'serious' ? '较严重' : '中风险',
+          prob,
+          probScore: Math.floor(Math.random()*20)+5,
+          impact,
+          impactScore: Math.floor(Math.random()*20)+5,
+          riskScore: Math.floor(Math.random()*30)+10,
+          secretLevel: secrets[Math.floor(Math.random()*4)],
+          domain: domains[Math.floor(Math.random()*domains.length)],
+          focusArea: focusAreas[Math.floor(Math.random()*focusAreas.length)],
+          trend,
+          newRisk,
+          occurFreq: ['偶发','少见','有时','较常','频繁'][Math.floor(Math.random()*5)],
+          occurFreqScore: Math.floor(Math.random()*15)+3,
+          impactScope: ['局部','部分','较大','广泛','全局'][Math.floor(Math.random()*5)],
+          impactScopeScore: Math.floor(Math.random()*15)+3,
+          ctrlStatus: ctrl,
+          ctrlMeasure: `${['完善','优化','加强','建立','健全'][Math.floor(Math.random()*5)]}${['审批流程','监督机制','预警系统','管理制度','内控体系'][Math.floor(Math.random()*5)]}`,
+          crossDeptCtrl: Math.random()>0.5 ? '是' : '否',
+          owner: `${['张','李','王','刘','陈','赵','周','吴','郑','孙'][Math.floor(Math.random()*10)]}${['经理','处长','总监','主任'][Math.floor(Math.random()*4)]}`,
+          reformStatus: reform,
+          reformMeasure: `${['加快','推进','落实','完善','强化'][Math.floor(Math.random()*5)]}${['风险识别','整改措施','内控建设','合规管理','流程优化'][Math.floor(Math.random()*5)]}`,
+          reformDue: `2026-${String(Math.floor(Math.random()*6)+6).padStart(2,'0')}-${String(Math.floor(Math.random()*28)+1).padStart(2,'0')}`,
+          reformProgress: reform === 'done' ? 100 : Math.floor(Math.random()*90)+5,
+          reformResult: reform === 'done' ? '合格' : reform === 'progress' ? '进行中' : '待整改',
+          deviateCount: Math.floor(Math.random()*5),
+          annualResult: reform === 'done' ? '已完成' : reform === 'overdue' ? '已逾期' : '整改中',
+          createDate: `2026-0${Math.floor(Math.random()*4)+1}-${String(Math.floor(Math.random()*28)+1).padStart(2,'0')}`,
+          updateDate: `2026-05-${String(Math.floor(Math.random()*15)+1).padStart(2,'0')}`,
+          remark: Math.random()>0.6 ? ['需重点关注','建议优先整改','风险可控','持续监控'][Math.floor(Math.random()*4)] : '',
+        });
+      }
+    });
+  });
+  return items;
+}
+
+const RISK_DATA = generateRiskData();
+let visibleFields = ALL_FIELDS.filter(f => f.visible !== false).map(f => ({...f}));
+let currentDept = null;
+let currentSub = null;
+let currentViewLevel = 'l2';
+let p3ViewMode = 'table';
+let sortKey = 'riskScore';
+let sortDir = -1;
+let draggedField = null;
+
+// ===================================================== 粒子背景 =====================================================
+(function initParticles() {
+  const canvas = document.getElementById('particles-canvas');
+  const ctx = canvas.getContext('2d');
+  let W = window.innerWidth, H = window.innerHeight;
+  canvas.width = W; canvas.height = H;
+  const particles = [];
+  for (let i = 0; i < 60; i++) {
+    particles.push({ x:Math.random()*W, y:Math.random()*H, r:Math.random()*1.2+0.2, vx:(Math.random()-0.5)*0.25, vy:(Math.random()-0.5)*0.25, alpha:Math.random()*0.3+0.08 });
+  }
+  function draw() {
+    ctx.clearRect(0,0,W,H);
+    particles.forEach(p => {
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0)p.x=W; if(p.x>W)p.x=0; if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(0,180,255,${p.alpha})`; ctx.fill();
+    });
+    for(let i=0;i<particles.length;i++){
+      for(let j=i+1;j<particles.length;j++){
+        const dx=particles[i].x-particles[j].x, dy=particles[i].y-particles[j].y;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<100){ ctx.beginPath(); ctx.strokeStyle=`rgba(0,180,255,${0.04*(1-dist/100)})`; ctx.lineWidth=0.4; ctx.moveTo(particles[i].x,particles[i].y); ctx.lineTo(particles[j].x,particles[j].y); ctx.stroke(); }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+  window.addEventListener('resize',()=>{ W=canvas.width=window.innerWidth; H=canvas.height=window.innerHeight; });
+})();
+
+// 时钟
+function updateClock(){ const now=new Date(); document.getElementById('clockDisplay').innerHTML=now.toLocaleDateString('zh-CN').replace(/\//g,'-')+'<br>'+now.toTimeString().slice(0,8); }
+setInterval(updateClock,1000); updateClock();
+
+// ===================================================== 页面切换 =====================================================
+function goPage(n, dept, sub) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page'+n).classList.add('active');
+  if(n===2 && dept){ currentDept=dept; document.getElementById('p2DeptName').textContent=dept.name; document.getElementById('p2DeptNameFull').innerHTML=dept.icon+' '+dept.name; renderPage2(dept); }
+  if(n===3 && sub){ currentSub=sub; document.getElementById('p3DeptName').textContent=currentDept?currentDept.name:''; document.getElementById('p3SubName').textContent=sub; renderPage3(); }
+}
+
+// ===================================================== 一级界面 =====================================================
+function renderDeptGrid(){
+  const grid=document.getElementById('deptGrid');
+  grid.innerHTML='';
+  DEPT_L1.forEach(dept=>{
+    const total=dept.risks[0]+dept.risks[1]+dept.risks[2];
+    const div=document.createElement('div');
+    div.className='dept-card';
+    div.innerHTML=`<div class="dept-icon" style="background:linear-gradient(135deg,${dept.color}33,${dept.color}11);--icon-color:${dept.color};"><span style="position:relative;z-index:1;">${dept.icon}</span></div>
+      <div class="dept-name">${dept.name}</div>
+      <div class="risk-badges"><span class="risk-badge high">高 ${dept.risks[0]}</span><span class="risk-badge mid">中 ${dept.risks[1]}</span><span class="risk-badge low">低 ${dept.risks[2]}</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${dept.reform}%;background:linear-gradient(90deg,${dept.color},${dept.color}aa);"></div></div>
+      <div style="font-size:10px;color:var(--text-dim);">整改率 ${dept.reform}%</div>`;
+    div.addEventListener('mouseenter',e=>showTooltip(e,dept));
+    div.addEventListener('mousemove',e=>moveTooltip(e));
+    div.addEventListener('mouseleave',hideTooltip);
+    div.addEventListener('click',()=>goPage(2,dept));
+    grid.appendChild(div);
+  });
+}
+
+const tooltip=document.getElementById('tooltip');
+function showTooltip(e,dept){
+  const total=dept.risks[0]+dept.risks[1]+dept.risks[2];
+  tooltip.innerHTML=`<div class="tooltip-title">${dept.icon} ${dept.name}</div>
+    <div class="tooltip-row"><span class="tkey">风险总数</span><span class="tval">${total} 条</span></div>
+    <div class="tooltip-row"><span class="tkey">高风险</span><span class="tval" style="color:var(--high-risk)">${dept.risks[0]} 条</span></div>
+    <div class="tooltip-row"><span class="tkey">中风险</span><span class="tval" style="color:var(--mid-risk)">${dept.risks[1]} 条</span></div>
+    <div class="tooltip-row"><span class="tkey">低风险</span><span class="tval" style="color:var(--low-risk)">${dept.risks[2]} 条</span></div>
+    <div class="tooltip-row"><span class="tkey">整改率</span><span class="tval">${dept.reform}%</span></div>
+    <div class="tooltip-row"><span class="tkey">二级部门</span><span class="tval">${dept.subs.length} 个</span></div>`;
+  tooltip.classList.add('show'); moveTooltip(e);
+}
+function moveTooltip(e){
+  let x=e.clientX+14,y=e.clientY-18;
+  if(x+200>window.innerWidth)x=e.clientX-214;
+  if(y+160>window.innerHeight)y=window.innerHeight-170;
+  tooltip.style.left=x+'px'; tooltip.style.top=y+'px';
+}
+function hideTooltip(){ tooltip.classList.remove('show'); }
+
+function setLayout(type,btn){
+  document.querySelectorAll('.section-actions .btn-sm').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const grid=document.getElementById('deptGrid');
+  if(type==='list'){ grid.style.gridTemplateColumns='1fr'; document.querySelectorAll('.dept-card').forEach(c=>{ c.style.flexDirection='row'; c.style.padding='8px 14px'; }); }
+  else{ grid.style.gridTemplateColumns=''; document.querySelectorAll('.dept-card').forEach(c=>{ c.style.flexDirection=''; c.style.padding=''; }); }
+}
+
+// ===================================================== 二级界面 =====================================================
+function renderPage2(dept){
+  const total=dept.risks[0]+dept.risks[1]+dept.risks[2];
+  document.getElementById('p2TotalRisk').textContent=total;
+  document.getElementById('p2SubCount').textContent=dept.subs.length;
+
+  // 顶部风险概览
+  const ov=document.getElementById('p2RiskOverview');
+  ov.innerHTML=`
+    <div class="p2-risk-stat"><div class="val" style="color:var(--critical)">${dept.risks[0]}</div><div class="lbl">重大风险</div></div>
+    <div class="p2-risk-stat"><div class="val" style="color:var(--high-risk)">${dept.risks[1]}</div><div class="lbl">高风险</div></div>
+    <div class="p2-risk-stat"><div class="val" style="color:var(--mid-risk)">${dept.risks[2]}</div><div class="lbl">中低风险</div></div>
+    <div class="p2-risk-stat"><div class="val" style="color:var(--low-risk)">${dept.subs.reduce((a,s)=>a+s.reform,0)/dept.subs.length|0}%</div><div class="lbl">平均整改率</div></div>
+  `;
+
+  // 图表
+  setTimeout(()=>{
+    const pie=echarts.init(document.getElementById('p2PieChart'),null,{renderer:'canvas'});
+    pie.setOption({ backgroundColor:'transparent', tooltip:{trigger:'item',backgroundColor:'rgba(2,15,35,0.9)',borderColor:'rgba(0,180,255,0.4)',textStyle:{color:'#e0f0ff'}}, series:[{ type:'pie', radius:['38%','65%'], center:['50%','50%'], label:{show:true,fontSize:9,color:'rgba(160,200,240,0.7)'}, itemStyle:{borderRadius:4,borderColor:'rgba(2,15,35,0.8)',borderWidth:2}, data:[ {value:dept.risks[0],name:'重大',itemStyle:{color:{type:'linear',x:0,y:0,x2:1,y2:1,colorStops:[{offset:0,color:'#cc00ff'},{offset:1,color:'#880099'}]}}}, {value:dept.risks[1],name:'高风险',itemStyle:{color:{type:'linear',x:0,y:0,x2:1,y2:1,colorStops:[{offset:0,color:'#ff3366'},{offset:1,color:'#aa0022'}]}}}, {value:dept.risks[2],name:'中低风险',itemStyle:{color:{type:'linear',x:0,y:0,x2:1,y2:1,colorStops:[{offset:0,color:'#00cc88'},{offset:1,color:'#008855'}]}}} ]}] });
+
+    const bar=echarts.init(document.getElementById('p2BarChart'),null,{renderer:'canvas'});
+    bar.setOption({ backgroundColor:'transparent', tooltip:{trigger:'axis',backgroundColor:'rgba(2,15,35,0.9)',borderColor:'rgba(0,180,255,0.4)',textStyle:{color:'#e0f0ff'}}, grid:{left:'5%',right:'5%',top:'10%',bottom:'15%'}, xAxis:{type:'category',data:dept.subs.map(s=>s.name.replace('处','')),axisLabel:{fontSize:9,color:'rgba(150,190,230,0.7)',rotate:dept.subs.length>3?25:0},axisLine:{lineStyle:{color:'rgba(0,100,180,0.3)'}}}, yAxis:{type:'value',axisLabel:{fontSize:9,color:'rgba(150,190,230,0.6)'},splitLine:{lineStyle:{color:'rgba(0,60,120,0.25)'}}}, series:[ {name:'风险数量',type:'bar',data:dept.subs.map(s=>s.risks[0]+s.risks[1]+s.risks[2]),itemStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#0088ff'},{offset:1,color:'#004488'}]}},barWidth:'55%'}, {name:'高风险',type:'bar',data:dept.subs.map(s=>s.risks[0]),itemStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#ff3366'},{offset:1,color:'#aa0022'}]}},barWidth:'55%'} ] });
+
+    const prog=echarts.init(document.getElementById('p2ProgressChart'),null,{renderer:'canvas'});
+    prog.setOption({ backgroundColor:'transparent', tooltip:{trigger:'axis',backgroundColor:'rgba(2,15,35,0.9)',borderColor:'rgba(0,180,255,0.4)',textStyle:{color:'#e0f0ff'}}, grid:{left:'5%',right:'8%',top:'10%',bottom:'15%'}, xAxis:{type:'category',data:dept.subs.map(s=>s.name.replace('处','')),axisLabel:{fontSize:9,color:'rgba(150,190,230,0.7)',rotate:dept.subs.length>3?25:0},axisLine:{lineStyle:{color:'rgba(0,100,180,0.3)'}}}, yAxis:{type:'value',axisLabel:{fontSize:9,color:'rgba(150,190,230,0.6)',formatter:'{value}%'},splitLine:{lineStyle:{color:'rgba(0,60,120,0.25)'}},max:100}, series:[ {name:'整改率',type:'bar',data:dept.subs.map(s=>s.reform),itemStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:s.reform>=80?'#00cc88':s.reform>=60?'#ff9900':'#ff3366'},{offset:1,color:s.reform>=80?'#008855':s.reform>=60?'#885500':'#aa0022'}]}},barWidth:'55%'} ] });
+  },100);
+
+  // 预设指标卡片
+  renderIndicators(dept);
+
+  // 部门列表
+  renderDeptList();
+}
+
+function renderIndicators(dept){
+  const container=document.getElementById('p2Indicators');
+  const subs=dept.subs;
+  const totalRisk=subs.reduce((a,s)=>a+s.risks[0]+s.risks[1]+s.risks[2],0);
+  const topSub=[...subs].sort((a,b)=>(b.risks[0]+b.risks[1])-(a.risks[0]+a.risks[1]))[0];
+  const avgCtrl=(subs.reduce((a,s)=>a+s.ctrlRate,0)/subs.length)|0;
+  const urgentCount=subs.filter(s=>s.reform<70).length;
+  const riskConcentrate=((subs[0].risks[0]+subs[0].risks[1])/totalRisk*100)|0;
+
+  container.innerHTML=`
+    <div class="indicator-card"><div class="ic-title"><span class="dot"></span>二级部门数量</div><div class="ic-value">${subs.length}</div><div class="ic-sub">个</div></div>
+    <div class="indicator-card"><div class="ic-title"><span class="dot" style="background:var(--high-risk)"></span>风险前五名部门</div><div class="ic-value red" style="font-size:14px;">${topSub?topSub.name:'—'}</div><div class="ic-sub">${topSub?topSub.risks[0]+topSub.risks[1]:0}条高风险</div></div>
+    <div class="indicator-card"><div class="ic-title"><span class="dot" style="background:var(--critical)"></span>密级数量统计</div><div class="ic-value">${Math.floor(Math.random()*20)+5}</div><div class="ic-sub">机密/秘密/内部</div></div>
+    <div class="indicator-card"><div class="ic-title"><span class="dot" style="background:#00aaff"></span>风险大类集中度</div><div class="ic-value orange">${riskConcentrate}%</div><div class="ic-sub">最高集中部门</div></div>
+    <div class="indicator-card"><div class="ic-title"><span class="dot" style="background:#ffaa00"></span>风险领域数量</div><div class="ic-value">${Math.floor(Math.random()*8)+4}</div><div class="ic-sub">个领域</div></div>
+    <div class="indicator-card"><div class="ic-title"><span class="dot" style="background:#ff6600"></span>风险偏离数量</div><div class="ic-value orange">${Math.floor(Math.random()*15)+2}</div><div class="ic-sub">偏离控制线</div></div>
+    <div class="indicator-card"><div class="ic-title"><span class="dot" style="background:var(--low-risk)"></span>控制达标率</div><div class="ic-value green">${avgCtrl}%</div><div class="ic-sub">有效控制</div></div>
+    <div class="indicator-card"><div class="ic-title"><span class="dot" style="background:var(--high-risk)"></span>整改紧迫度</div><div class="ic-value red">${urgentCount}</div><div class="ic-sub">需重点关注</div></div>
+    <div class="indicator-card"><div class="ic-title"><span class="dot" style="background:#aa88ff"></span>风险集中度</div><div class="ic-value">${Math.floor(Math.random()*30)+15}%</div><div class="ic-sub">前三大部门</div></div>
+    <div class="indicator-card"><div class="ic-title"><span class="dot" style="background:var(--mid-risk)"></span>年度整改状态</div><div class="ic-value orange">${subs.filter(s=>s.reform>=80).length}/${subs.length}</div><div class="ic-sub">已完成/总计</div></div>
+  `;
+}
+
+function setViewMode(mode,btn){
+  document.querySelectorAll('.view-tabs .btn-sm').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentViewLevel=mode;
+  renderDeptList();
+}
+
+function renderDeptList(){
+  if(!currentDept) return;
+  const subs=currentDept.subs;
+  const head=document.getElementById('p2TableHead');
+  const body=document.getElementById('p2TableBody');
+
+  head.innerHTML=`<tr>
+    <th>部门名称</th>
+    <th>负责人</th>
+    <th>📊 风险数量</th>
+    <th>🔢 高中低分布</th>
+    <th>📈 控制达标率</th>
+    <th>🔧 整改率</th>
+    <th>📌 年度整改</th>
+    <th>⚠️ 风险趋势</th>
+    <th>📋 操作</th>
+  </tr>`;
+
+  body.innerHTML='';
+  subs.forEach((sub,i)=>{
+    const total=sub.risks[0]+sub.risks[1]+sub.risks[2];
+    const trend=Math.random()>0.6?'↑上升':Math.random()>0.5?'↓下降':'→持平';
+    const trendColor=trend.includes('上升')?'var(--high-risk)':trend.includes('下降')?'var(--low-risk)':'var(--text-dim)';
+    const row=document.createElement('tr');
+    row.innerHTML=`
+      <td><div class="sub-dept-cell"><div class="sub-dept-icon" style="background:${currentDept.color}22">${sub.icon}</div><div><div class="sub-dept-name">${sub.name}</div><div class="sub-dept-manager">${sub.mgr}</div></div></div></td>
+      <td>${sub.mgr}</td>
+      <td><b style="color:var(--accent-cyan)">${total}</b> 条</td>
+      <td><div class="risk-level-pills"><span class="risk-pill critical">重 ${sub.risks[0]}</span><span class="risk-pill high">高 ${sub.risks[1]}</span><span class="risk-pill mid">中 ${sub.risks[2]}</span></div></td>
+      <td><div class="mini-indicators"><div class="mini-ind"><div class="mi-val" style="color:${sub.ctrlRate>=80?'var(--low-risk)':sub.ctrlRate>=60?'var(--mid-risk)':'var(--high-risk)'}">${sub.ctrlRate}%</div><div class="mi-lbl">达标</div></div></div></td>
+      <td><div class="reform-bar-mini"><div class="bar"><div class="bar-fill" style="width:${sub.reform}%;background:${sub.reform>=80?'linear-gradient(90deg,#00cc88,#00ff88)':sub.reform>=60?'linear-gradient(90deg,#ff9900,#ffcc00)':'linear-gradient(90deg,#ff3366,#ff0044)'}"></div></div><span class="pct">${sub.reform}%</span></div></td>
+      <td><span class="status-pill ${sub.reform>=80?'done':sub.reform>=60?'progress':'pending'}">${sub.reform>=80?'已完成':sub.reform>=60?'进行中':'待整改'}</span></td>
+      <td><span class="trend-tag ${trend.includes('上升')?'up':trend.includes('下降')?'down':'stable'}">${trend}</span></td>
+      <td><button class="btn-sm" onclick="goPage(3,null,'${sub.name}')" style="padding:2px 8px;font-size:10px;">查看详情 →</button></td>
+    `;
+    row.addEventListener('click',()=>goPage(3,null,sub.name));
+    body.appendChild(row);
+  });
+}
+
+function toggleListView(){}
+
+// ===================================================== 三级界面 =====================================================
+function setP3View(mode,btn){
+  document.querySelectorAll('.p3-toolbar-left .btn-sm').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  p3ViewMode=mode;
+  renderPage3();
+}
+
+function renderPage3(){
+  renderP3Table();
+  filterTable();
+}
+
+function renderP3Table(){
+  const head=document.getElementById('p3TableHead');
+  const body=document.getElementById('p3TableBody');
+
+  // 构建表头
+  head.innerHTML='<tr>'+visibleFields.map((f,i)=>`
+    <th class="${i<2?'frozen-col':''}" data-key="${f.key}" draggable="true" ondragstart="onFieldDragStart(event,${i})" ondragover="onFieldDragOver(event)" ondrop="onFieldDrop(event,${i})" ondragend="onFieldDragEnd(event)" onclick="toggleSort('${f.key}')">
+      <span class="col-drag">☰</span>${f.label}<span class="sort-icon">${sortKey===f.key?(sortDir===1?'↑':'↓'):'↕'}</span>
+    </th>`).join('')+'</tr>';
+
+  const levelMap={critical:'重大风险',high:'高风险',serious:'较严重',mid:'中风险',low:'低风险'};
+  const ctrlMap={effective:'有效',basic:'基本有效',weak:'弱有效',none:'无效'};
+  const reformMap={done:'已整改',progress:'整改中',pending:'未整改',overdue:'逾期'};
+  const trendMap={up:'↑',stable:'→',down:'↓'};
+
+  // 先过滤再排序
+  const filtered=getFilteredData();
+  filtered.sort((a,b)=>{
+    const av=a[sortKey],bv=b[sortKey];
+    if(typeof av==='number') return sortDir*(av-bv);
+    return sortDir*(String(av)>String(bv)?1:-1);
+  });
+
+  body.innerHTML='';
+  filtered.forEach(item=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=visibleFields.map((f,i)=>{
+      let val=item[f.key]||'—';
+      let cls='';
+      if(f.key==='level'){
+        const lk=item.level;
+        cls=`level-tag ${lk}`;
+        val=levelMap[lk]||lk;
+      } else if(f.key==='ctrlStatus'){
+        const ck=item.ctrlStatus;
+        cls=`ctrl-status ${ck}`;
+        val=ctrlMap[ck]||ck;
+      } else if(f.key==='reformStatus'){
+        const rk=item.reformStatus;
+        cls=`reform-status ${rk}`;
+        val=reformMap[rk]||rk;
+      } else if(f.key==='trend'){
+        const tk=item.trend;
+        cls=`trend-tag ${tk}`;
+        val=trendMap[tk]||tk;
+      } else if(f.key==='reformProgress'){
+        const pct=val;
+        return `<td><div style="display:flex;align-items:center;gap:6px;"><div class="prog-bar" style="width:60px;"><div class="prog-fill ${pct>=80?'green':pct>=50?'yellow':'red'}" style="width:${pct}%"></div></div><span style="font-size:10px;">${pct}%</span></div></td>`;
+      }
+      return `<td class="${i<2?'frozen-col':''}" ${cls?`class="${i<2?'frozen-col':''}"`:''}>${cls?`<span class="${cls}">${val}</span>`:val}</td>`;
+    }).join('');
+    tr.addEventListener('dblclick',()=>showDetail(item));
+    body.appendChild(tr);
+  });
+
+  document.getElementById('p3RecordCount').innerHTML=`共 <b>${filtered.length}</b> 条记录`;
+  document.getElementById('dispCount').textContent=filtered.length;
+  document.getElementById('totalCount').textContent=RISK_DATA.length;
+}
+
+function getFilteredData(){
+  const search=document.getElementById('p3SearchInput').value.toLowerCase();
+  const level=document.getElementById('p3LevelFilter').value;
+  const cat=document.getElementById('p3CategoryFilter').value;
+  const ctrl=document.getElementById('p3CtrlFilter').value;
+  const reform=document.getElementById('p3ReformFilter').value;
+
+  return RISK_DATA.filter(item=>{
+    if(search && !item.riskName.toLowerCase().includes(search) && !item.riskCode.toLowerCase().includes(search) && !item.category.toLowerCase().includes(search)) return false;
+    if(level!=='全部等级' && !item.levelAfter.includes(level.replace('风险',''))) return false;
+    if(cat!=='全部分类' && item.category!==cat) return false;
+    if(ctrl!=='控制状态' && !item.ctrlStatus.includes(ctrl.substring(0,3))) return false;
+    if(reform!=='整改状态' && !item.reformStatus.includes(reform.substring(0,3))) return false;
+    return true;
+  });
+}
+
+function filterTable(){
+  const filtered=getFilteredData();
+  filtered.sort((a,b)=>{
+    const av=a[sortKey],bv=b[sortKey];
+    if(typeof av==='number') return sortDir*(av-bv);
+    return sortDir*(String(av)>String(bv)?1:-1);
+  });
+  const body=document.getElementById('p3TableBody');
+  const levelMap={critical:'重大风险',high:'高风险',serious:'较严重',mid:'中风险',low:'低风险'};
+  const ctrlMap={effective:'有效',basic:'基本有效',weak:'弱有效',none:'无效'};
+  const reformMap={done:'已整改',progress:'整改中',pending:'未整改',overdue:'逾期'};
+  const trendMap={up:'↑',stable:'→',down:'↓'};
+
+  body.innerHTML='';
+  filtered.forEach(item=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=visibleFields.map((f,i)=>{
+      let val=item[f.key]||'—';
+      let cls='';
+      if(f.key==='level'){ const lk=item.level; cls=`level-tag ${lk}`; val=levelMap[lk]||lk; }
+      else if(f.key==='ctrlStatus'){ const ck=item.ctrlStatus; cls=`ctrl-status ${ck}`; val=ctrlMap[ck]||ck; }
+      else if(f.key==='reformStatus'){ const rk=item.reformStatus; cls=`reform-status ${rk}`; val=reformMap[rk]||rk; }
+      else if(f.key==='trend'){ const tk=item.trend; cls=`trend-tag ${tk}`; val=trendMap[tk]||tk; }
+      else if(f.key==='reformProgress'){ const pct=val; return `<td><div style="display:flex;align-items:center;gap:6px;"><div class="prog-bar" style="width:60px;"><div class="prog-fill ${pct>=80?'green':pct>=50?'yellow':'red'}" style="width:${pct}%"></div></div><span style="font-size:10px;">${pct}%</span></div></td>`; }
+      return `<td class="${i<2?'frozen-col':''}">${cls?`<span class="${cls}">${val}</span>`:val}</td>`;
+    }).join('');
+    tr.addEventListener('dblclick',()=>showDetail(item));
+    body.appendChild(tr);
+  });
+  document.getElementById('p3RecordCount').innerHTML=`共 <b>${filtered.length}</b> 条记录`;
+  document.getElementById('dispCount').textContent=filtered.length;
+  document.getElementById('selCount').textContent='0';
+}
+
+function toggleSort(key){
+  if(sortKey===key) sortDir*=-1;
+  else{ sortKey=key; sortDir=-1; }
+  // 更新表头的排序图标
+  document.querySelectorAll('#p3TableHead th').forEach(th=>th.classList.remove('sorted'));
+  document.querySelector(`#p3TableHead th[data-key="${key}"]`).classList.add('sorted');
+  filterTable();
+}
+
+// ===================================================== 字段拖拽 =====================================================
+function onFieldDragStart(e,idx){ draggedField=idx; e.dataTransfer.effectAllowed='move'; e.target.classList.add('dragging'); }
+function onFieldDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; }
+function onFieldDrop(e,idx){
+  e.preventDefault();
+  if(draggedField===null||draggedField===idx) return;
+  const moved=visibleFields.splice(draggedField,1)[0];
+  visibleFields.splice(idx,0,moved);
+  draggedField=null;
+  renderPage3();
+}
+function onFieldDragEnd(e){ e.target.classList.remove('dragging'); document.querySelectorAll('.field-item').forEach(f=>f.classList.remove('drag-over')); }
+
+function showFieldSettings(){
+  const container=document.getElementById('fieldSettings');
+  container.innerHTML=ALL_FIELDS.map((f,i)=>{
+    const checked=visibleFields.some(vf=>vf.key===f.key)?'checked':'';
+    return `<label class="field-item" draggable="true" ondragstart="onFieldDragStartFS(event,${i})" ondragover="onFieldDragOverFS(event)" ondrop="onFieldDropFS(event,${i})" ondragend="onFieldDragEndFS(event)">
+      <input type="checkbox" ${checked} onchange="toggleField('${f.key}',this.checked)"> ${f.label}
+    </label>`;
+  }).join('');
+  document.getElementById('fieldModal').classList.add('show');
+}
+
+let draggedFieldFS=null;
+function onFieldDragStartFS(e,idx){ draggedFieldFS=idx; e.dataTransfer.effectAllowed='move'; e.target.classList.add('dragging'); }
+function onFieldDragOverFS(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; }
+function onFieldDropFS(e,idx){
+  e.preventDefault();
+  if(draggedFieldFS===null||draggedFieldFS===idx) return;
+  const moved=ALL_FIELDS.splice(draggedFieldFS,1)[0];
+  ALL_FIELDS.splice(idx,0,moved);
+  draggedFieldFS=null;
+  showFieldSettings();
+}
+function onFieldDragEndFS(e){ e.target.classList.remove('dragging'); }
+
+function toggleField(key,checked){
+  if(checked){ if(!visibleFields.some(v=>v.key===key)) visibleFields.push(ALL_FIELDS.find(f=>f.key===key)); }
+  else{ visibleFields=visibleFields.filter(v=>v.key!==key); }
+}
+function applyFields(){ document.getElementById('fieldModal').classList.remove('show'); renderPage3(); }
+
+// ===================================================== 详情弹窗 =====================================================
+function showDetail(item){
+  const levelMap={critical:'重大风险',high:'高风险',serious:'较严重',mid:'中风险',low:'低风险'};
+  const ctrlMap={effective:'有效',basic:'基本有效',weak:'弱有效',none:'无效'};
+  const reformMap={done:'已整改',progress:'整改中',pending:'未整改',overdue:'逾期未整改'};
+  const body=document.getElementById('modalBody');
+  const fields=[
+    ['风险编号',item.riskCode],['风险名称',`<span style="color:var(--accent-cyan);font-weight:600">${item.riskName}</span>`],
+    ['风险分类',item.category],['所属部门',`${item.dept1} · ${item.dept2}`],
+    ['自评等级',`<span class="level-tag ${item.level}">${levelMap[item.level]}</span>`],
+    ['发生概率',item.prob],['影响程度',item.impact],
+    ['控制状态',`<span class="ctrl-status ${item.ctrlStatus}">${ctrlMap[item.ctrlStatus]}</span>`],
+    ['整改状态',`<span class="reform-status ${item.reformStatus}">${reformMap[item.reformStatus]}</span>`],
+    ['责任人',item.owner],
+  ];
+  const fields2=[
+    ['风险领域',item.domain],['重点关注',item.focusArea],
+    ['风险趋势',`<span class="trend-tag ${item.trend}">${item.trend==='up'?'↑上升':item.trend==='down'?'↓下降':'→持平'}</span>`],
+    ['新增/消除',item.newRisk],['发生频次',item.occurFreq],['影响范围',item.impactScope],
+    ['整改措施',item.reformMeasure],['控制措施',item.ctrlMeasure],
+    ['整改期限',item.reformDue],['年度整改',item.annualResult],
+  ];
+  body.innerHTML=fields.map(([k,v])=>`<div class="modal-field"><div class="mkey">${k}</div><div class="mval">${v}</div></div>`).join('')+'<div class="modal-field full"><div class="mkey">描述</div><div class="mval">'+`${item.riskName}，发生概率${item.prob}，影响程度${item.impact}。${item.remark||'无备注。'}`+'</div></div>';
+  body.innerHTML+=fields2.map(([k,v])=>`<div class="modal-field"><div class="mkey">${k}</div><div class="mval">${v}</div></div>`).join('');
+  document.getElementById('detailModal').classList.add('show');
+}
+
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{ if(e.target===e.currentTarget) e.currentTarget.classList.remove('show'); }));
+
+function toggleCompareMode(){}
+function refreshData(){
+  const btn=document.querySelector('.btn-icon[title="刷新"]');
+  btn.style.transition='transform 0.5s'; btn.style.transform='rotate(360deg)';
+  setTimeout(()=>{btn.style.transform='';},600);
+}
+function exportData(){}
+
+// 指标筛选点击
+document.querySelectorAll('.filter-tag[data-metric]').forEach(tag=>{
+  tag.addEventListener('click',()=>{
+    tag.classList.toggle('active');
+  });
+});
+
+// ===================================================== 初始化 =====================================================
+renderDeptGrid();
+</script>
+</body>
+</html>
